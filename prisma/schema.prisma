@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")  // Verwijs naar de omgevingsvariabele in .env bestand
+}
+
+// Model voor gebruikers (User) met een mogelijke host-rol
+model User {
+  id        Int      @id @default(autoincrement())  // Unieke ID voor elke gebruiker
+  username  String   @unique                       // Unieke gebruikersnaam
+  password  String
+  email     String   @unique                       // Uniek emailadres
+  role      String   // Rol van de gebruiker, bijvoorbeeld 'admin', 'host', 'guest'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bookings  Booking[] // Relatie naar bookings (een gebruiker kan meerdere boekingen maken)
+  reviews   Review[]  // Relatie naar reviews (een gebruiker kan meerdere reviews schrijven)
+  // Een host kan meerdere properties (listings) bezitten
+  listings  Property[] @relation("HostProperties")
+}
+
+// Model voor properties (Property)
+model Property {
+  id            Int       @id @default(autoincrement())  // Unieke ID voor elke property
+  name          String
+  pricePerNight Float     // Prijs per nacht als een float
+  description   String
+  location      String
+  hostId        Int      // Buitenlandse sleutel naar de gebruiker die de host is
+  host          User     @relation("HostProperties", fields: [hostId], references: [id]) // Relatie naar host
+  amenities     Amenity[] @relation("PropertyAmenities")
+  bookings      Booking[] // Relatie naar boekingen
+  reviews       Review[]  // Relatie naar reviews
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// Model voor de relaties tussen properties en amenities (veel-op-veel)
+model Amenity {
+  id          Int        @id @default(autoincrement())  // Unieke ID voor elke amenity
+  name        String
+  properties  Property[] @relation("PropertyAmenities")  // Veel-op-veel relatie met Property
+}
+
+// Model voor boekingen (Booking)
+model Booking {
+  id          Int      @id @default(autoincrement())  // Unieke ID voor elke booking
+  checkInDate DateTime
+  checkOutDate DateTime
+  userId      Int      // Buitenlandse sleutel naar de gebruiker
+  user        User     @relation(fields: [userId], references: [id]) // Relatie naar de gebruiker die boekt
+  propertyId  Int      // Buitenlandse sleutel naar de property
+  property    Property @relation(fields: [propertyId], references: [id]) // Relatie naar de geboekte property
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Model voor reviews (Review)
+model Review {
+  id          Int      @id @default(autoincrement())  // Unieke ID voor elke review
+  rating      Int      // Beoordeling, bijvoorbeeld van 1 tot 5
+  comment     String   // Reviewcommentaar
+  userId      Int      // Buitenlandse sleutel naar de gebruiker die de review schrijft
+  user        User     @relation(fields: [userId], references: [id]) // Relatie naar de gebruiker die de review schrijft
+  propertyId  Int      // Buitenlandse sleutel naar de property
+  property    Property @relation(fields: [propertyId], references: [id]) // Relatie naar de beoordeelde property
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
