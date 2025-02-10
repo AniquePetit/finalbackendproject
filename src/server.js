@@ -1,52 +1,58 @@
-// Import Sentry voor CommonJS
-const Sentry = require("@sentry/node");
-const express = require("express");
-const dotenv = require("dotenv");
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
-const { PrismaClient } = require("@prisma/client");
+// Import Sentry for ES Modules
+import * as Sentry from "@sentry/node";
+import express from "express";
+import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import { PrismaClient } from "@prisma/client";
 
-// Laad .env bestand voor omgevingsvariabelen
+// Load .env file for environment variables
 dotenv.config();
 
-// Initialiseer Prisma en Sentry
+// Initialize Prisma and Sentry
 const prisma = new PrismaClient();
 
-// Sentry initialisatie met je DSN
+// Sentry initialization with your DSN
 Sentry.init({
-  dsn: "https://49704ae434f2e2fd1486fb5ce95b4fae@o4508782577319936.ingest.de.sentry.io/4508782582890576",
+  dsn: process.env.SENTRY_DSN, // Maak de DSN een environment variable
 });
 
-// Maak de Express app aan
-const server = express();  // We hebben 'app' veranderd naar 'server'
-server.use(express.json()); // Voor het parsen van JSON-body's
+// Create the Express app
+const server = express();
+server.use(express.json()); // For parsing JSON bodies
 
-// Middleware voor foutopsporing met Sentry
+// Middleware for error tracking with Sentry
 server.use(Sentry.Handlers.requestHandler());
 
+// ------------------- Eenvoudige Root Route -------------------
+// Add a simple root route to check if the server is running
+server.get("/", (req, res) => {
+  res.send("Server is running!"); // This message will appear at http://localhost:3000/
+});
+
 // ------------------- Login Route -------------------
-// Route om in te loggen en een JWT-token te verkrijgen
+// Route to login and obtain a JWT token
 server.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Zoek gebruiker op via email
+    // Find user by email
     const user = await prisma.user.findUnique({
       where: { email },
     });
 
-    // Controleer of de gebruiker bestaat
+    // Check if user exists
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Vergelijk het ingevoerde wachtwoord met het opgeslagen wachtwoord
+    // Compare the entered password with the stored password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Genereer een JWT-token
+    // Generate a JWT token
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.AUTH_SECRET_KEY,
@@ -55,33 +61,33 @@ server.post("/login", async (req, res) => {
 
     res.json({ token });
   } catch (error) {
-    Sentry.captureException(error); // Log de fout naar Sentry
+    Sentry.captureException(error); // Log the error to Sentry
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// ------------------- Middleware voor JWT verificatie -------------------
-// Middleware om JWT-token te verifiëren voor beveiligde routes
+// ------------------- Middleware for JWT verification -------------------
+// Middleware to verify JWT token for protected routes
 const verifyToken = (req, res, next) => {
-  const token = req.headers["authorization"]?.split(" ")[1]; // Bijvoorbeeld: "Bearer <token>"
+  const token = req.headers["authorization"]?.split(" ")[1]; // Example: "Bearer <token>"
 
   if (!token) {
     return res.status(403).json({ message: "Token is required" });
   }
 
-  // Verifieer het token
+  // Verify the token
   jwt.verify(token, process.env.AUTH_SECRET_KEY, (err, decoded) => {
     if (err) {
       return res.status(403).json({ message: "Invalid or expired token" });
     }
 
-    req.user = decoded; // Voeg de gedecodeerde informatie toe aan de request
+    req.user = decoded; // Attach decoded info to the request
     next();
   });
 };
 
-// ------------------- Gebruikersroutes -------------------
-// Haal alle gebruikers op
+// ------------------- User Routes -------------------
+// Get all users
 server.get("/users", verifyToken, async (req, res) => {
   try {
     const users = await prisma.user.findMany({
@@ -94,12 +100,12 @@ server.get("/users", verifyToken, async (req, res) => {
   }
 });
 
-// Maak een nieuwe gebruiker aan
+// Create a new user
 server.post("/users", async (req, res) => {
   const { username, email, password, role } = req.body;
 
   try {
-    // Versleutel het wachtwoord
+    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await prisma.user.create({
@@ -118,8 +124,8 @@ server.post("/users", async (req, res) => {
   }
 });
 
-// ------------------- Bookings routes -------------------
-// Haal alle boekingen op
+// ------------------- Booking Routes -------------------
+// Get all bookings
 server.get("/bookings", verifyToken, async (req, res) => {
   try {
     const bookings = await prisma.booking.findMany();
@@ -130,7 +136,7 @@ server.get("/bookings", verifyToken, async (req, res) => {
   }
 });
 
-// Haal een specifieke boeking op
+// Get a specific booking by ID
 server.get("/bookings/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   try {
@@ -145,7 +151,7 @@ server.get("/bookings/:id", verifyToken, async (req, res) => {
   }
 });
 
-// Maak een nieuwe boeking aan
+// Create a new booking
 server.post("/bookings", verifyToken, async (req, res) => {
   const { checkInDate, checkOutDate, userId, propertyId } = req.body;
   try {
@@ -164,7 +170,7 @@ server.post("/bookings", verifyToken, async (req, res) => {
   }
 });
 
-// Werk een bestaande boeking bij
+// Update an existing booking
 server.put("/bookings/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   const { checkInDate, checkOutDate } = req.body;
@@ -183,30 +189,30 @@ server.put("/bookings/:id", verifyToken, async (req, res) => {
   }
 });
 
-// Verwijder een boeking
+// Delete a booking
 server.delete("/bookings/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   try {
     await prisma.booking.delete({ where: { id: parseInt(id) } });
-    res.status(204).send(); // 204 betekent "No Content"
+    res.status(204).send(); // 204 means "No Content"
   } catch (error) {
     Sentry.captureException(error);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// ------------------- Foutafhandelingsmiddleware -------------------
-// Foutafhandelingsmiddleware voor Sentry
+// ------------------- Error Handling Middleware -------------------
+// Sentry error handling middleware
 server.use(Sentry.Handlers.errorHandler());
 
-// Algemene foutafhandelingsmiddleware
+// General error handling middleware
 server.use((err, req, res, next) => {
   res.statusCode = 500;
   res.end(res.sentry + "\n");
 });
 
-// ------------------- Server opstarten -------------------
+// ------------------- Start the server -------------------
 const port = process.env.PORT || 3000;
 server.listen(port, () => {
-  console.log(`Server draait op poort ${port}`);
+  console.log(`Server is running on port ${port}`);
 });

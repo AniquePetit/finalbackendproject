@@ -25,7 +25,9 @@
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "jose": "^5.9.6",
     "jsonwebtoken": "^9.0.2",
+    "postman-runtime": "^7.43.1",
     "uuid": "^9.0.0",
     "winston": "^3.10.0"
   },
